@@ -134,6 +134,87 @@ export function isMockMode() {
   return !getScriptUrl();
 }
 
+/**
+ * Compress / optimize a file before base64 encoding.
+ * - Images (JPEG/PNG/WEBP): resized to max 1200px & re-encoded at 0.75 quality
+ * - PDF/DOC: passed through unchanged (no client-side compression possible)
+ * Returns a Promise<{ base64, name, type, originalSizeKB, compressedSizeKB }>
+ */
+async function compressFile(file) {
+  const isImage = file.type.startsWith('image/');
+
+  if (isImage) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const objectUrl = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(objectUrl);
+        const MAX_DIM = 1200;
+        let { width, height } = img;
+
+        // Scale down proportionally if too large
+        if (width > MAX_DIM || height > MAX_DIM) {
+          const ratio = Math.min(MAX_DIM / width, MAX_DIM / height);
+          width = Math.round(width * ratio);
+          height = Math.round(height * ratio);
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // Re-encode as JPEG at 75% quality (much smaller than PNG)
+        const quality = 0.75;
+        const mimeOut = 'image/jpeg';
+        canvas.toBlob(blob => {
+          if (!blob) { reject(new Error('Gagal kompres gambar')); return; }
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            const base64 = reader.result.split(',')[1];
+            resolve({
+              base64,
+              name: file.name.replace(/\.[^.]+$/, '.jpg'),
+              type: mimeOut,
+              originalSizeKB: Math.round(file.size / 1024),
+              compressedSizeKB: Math.round(blob.size / 1024)
+            });
+          };
+          reader.readAsDataURL(blob);
+        }, mimeOut, quality);
+      };
+      img.onerror = () => { URL.revokeObjectURL(objectUrl); reject(new Error('Gagal memuat gambar')); };
+      img.src = objectUrl;
+    });
+  }
+
+  // Non-image: just read as-is
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64 = reader.result.split(',')[1];
+      resolve({
+        base64,
+        name: file.name,
+        type: file.type,
+        originalSizeKB: Math.round(file.size / 1024),
+        compressedSizeKB: Math.round(file.size / 1024)
+      });
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+// Check & throw early if file is too large (5 MB max for non-images, 15 MB for images before compress)
+function validateFileSize(file) {
+  const isImage = file.type.startsWith('image/');
+  const limitMB = isImage ? 15 : 5;
+  if (file.size > limitMB * 1024 * 1024) {
+    throw new Error(`Ukuran file terlalu besar. Maksimal ${limitMB}MB untuk ${isImage ? 'gambar' : 'dokumen'}.`);
+  }
+}
+
 // API Service
 export const api = {
   // Login action
@@ -199,18 +280,10 @@ export const api = {
   // Create a new submission
   async createSubmission({ nomorSurat, prodi, pemohon, tanggalPengajuan, file }) {
     const scriptUrl = getScriptUrl();
-    
-    const fileData = await new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        resolve({
-          base64: reader.result.split(',')[1],
-          name: file.name,
-          type: file.type
-        });
-      };
-      reader.readAsDataURL(file);
-    });
+
+    validateFileSize(file);
+    const fileData = await compressFile(file);
+    console.log(`[Upload] ${file.name}: ${fileData.originalSizeKB}KB → ${fileData.compressedSizeKB}KB`);
 
     if (!scriptUrl) {
       const submissions = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || '[]');
@@ -261,18 +334,10 @@ export const api = {
   // Upload file for a specific stage
   async uploadStageDocument(submissionId, stageIndex, file) {
     const scriptUrl = getScriptUrl();
-    
-    const fileData = await new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        resolve({
-          base64: reader.result.split(',')[1],
-          name: file.name,
-          type: file.type
-        });
-      };
-      reader.readAsDataURL(file);
-    });
+
+    validateFileSize(file);
+    const fileData = await compressFile(file);
+    console.log(`[Upload] ${file.name}: ${fileData.originalSizeKB}KB → ${fileData.compressedSizeKB}KB`);
 
     if (!scriptUrl) {
       const submissions = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || '[]');

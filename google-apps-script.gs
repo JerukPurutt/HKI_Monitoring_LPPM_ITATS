@@ -8,6 +8,17 @@ const STAGE_NAMES = [
   "Dokumen PJK"
 ];
 
+// Script-level cache (lives for the duration of one execution context)
+var _ssCache = null;
+var _submissionsSheetCache = null;
+var _usersSheetCache = null;
+
+function getActiveSpreadsheetCached() {
+  if (!_ssCache) _ssCache = SpreadsheetApp.getActiveSpreadsheet();
+  return _ssCache;
+}
+
+
 // Handle GET Request (fetching data)
 function doGet(e) {
   var action = e.parameter.action;
@@ -64,7 +75,8 @@ function doPost(e) {
 
 // Get or create spreadsheet sheet for HKI Submissions
 function getOrCreateSheet() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  if (_submissionsSheetCache) return _submissionsSheetCache;
+  var ss = getActiveSpreadsheetCached();
   var sheet = ss.getSheetByName("Submissions");
   if (!sheet) {
     sheet = ss.insertSheet("Submissions");
@@ -82,12 +94,14 @@ function getOrCreateSheet() {
     sheet.getRange(1, 1, 1, headers.length).setFontWeight("bold");
     sheet.setFrozenRows(1);
   }
+  _submissionsSheetCache = sheet;
   return sheet;
 }
 
 // Get or create spreadsheet sheet for User Accounts
 function getOrCreateUsersSheet() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  if (_usersSheetCache) return _usersSheetCache;
+  var ss = getActiveSpreadsheetCached();
   var sheet = ss.getSheetByName("Users");
   if (!sheet) {
     sheet = ss.insertSheet("Users");
@@ -100,6 +114,7 @@ function getOrCreateUsersSheet() {
     sheet.appendRow(["admin", "admin123", "admin"]);
     sheet.appendRow(["user", "user123", "user"]);
   }
+  _usersSheetCache = sheet;
   return sheet;
 }
 
