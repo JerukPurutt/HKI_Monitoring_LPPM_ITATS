@@ -22,11 +22,15 @@ function getActiveSpreadsheetCached() {
 // Handle GET Request (fetching data)
 function doGet(e) {
   var action = e.parameter.action;
+  var token = e.parameter.token;
   
   try {
-    var sheet = getOrCreateSheet();
-    
     if (action === 'list') {
+      var userPayload = verifyJwt(token, JWT_SECRET);
+      if (!userPayload) {
+        return createJsonResponse({ success: false, error: 'Unauthorized: Token tidak valid atau kedaluwarsa' });
+      }
+      var sheet = getOrCreateSheet();
       var data = getAllSubmissionsData(sheet);
       return createJsonResponse(data);
     }
@@ -48,6 +52,13 @@ function doPost(e) {
       var usersSheet = getOrCreateUsersSheet();
       var loginResult = handleLogin(usersSheet, postData);
       return createJsonResponse(loginResult);
+    }
+    
+    // Verify token for all other protected actions
+    var token = postData.token;
+    var userPayload = verifyJwt(token, JWT_SECRET);
+    if (!userPayload) {
+      return createJsonResponse({ success: false, error: 'Unauthorized: Token tidak valid atau kedaluwarsa' });
     }
     
     // Action 2 & 3: Create & Upload Submissions
@@ -139,12 +150,19 @@ function handleLogin(sheet, data) {
     var dbRole = values[i][2].toString().toLowerCase().trim();
     
     if (dbUser === username && dbPass === password) {
+      var userPayload = {
+        username: values[i][0].toString(),
+        role: dbRole,
+        exp: Math.floor(new Date().getTime() / 1000) + (3 * 24 * 60 * 60) // 3 days expiration
+      };
+      var token = generateJwt(userPayload, JWT_SECRET);
       return { 
         success: true, 
         user: { 
-          username: values[i][0].toString(), 
-          role: dbRole 
-        } 
+          username: userPayload.username, 
+          role: userPayload.role 
+        },
+        token: token
       };
     }
   }
@@ -386,4 +404,72 @@ function deleteSubmissionRow(sheet, data) {
     }
   }
   return { success: false, error: 'Pengajuan tidak ditemukan' };
+}
+
+const JWT_SECRET = "lppm_hki_secret_key_2026";
+
+function generateJwt(payload, secret) {
+  var header = {
+    alg: "HS256",
+    typ: "JWT"
+  };
+  
+  var base64Header = base64UrlEncode(JSON.stringify(header));
+  var base64Payload = base64UrlEncode(JSON.stringify(payload));
+  
+  var signature = computeHmacSha256Signature(base64Header + "." + base64Payload, secret);
+  
+  return base64Header + "." + base64Payload + "." + signature;
+}
+
+function verifyJwt(token, secret) {
+  try {
+    if (!token) return null;
+    var parts = token.split('.');
+    if (parts.length !== 3) return null;
+    
+    var header = parts[0];
+    var payload = parts[1];
+    var signature = parts[2];
+    
+    var calculatedSignature = computeHmacSha256Signature(header + "." + payload, secret);
+    if (signature !== calculatedSignature) {
+      return null;
+    }
+    
+    var decodedPayload = JSON.parse(base64UrlDecode(payload));
+    var now = Math.floor(new Date().getTime() / 1000);
+    if (decodedPayload.exp && now > decodedPayload.exp) {
+      return null; // Expired
+    }
+    
+    return decodedPayload;
+  } catch (e) {
+    return null;
+  }
+}
+
+function base64UrlEncode(str) {
+  var bytes = Utilities.newBlob(str).getBytes();
+  var base64 = Utilities.base64Encode(bytes);
+  return base64.replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+}
+
+function base64UrlDecode(input) {
+  var base64 = input.replace(/-/g, '+').replace(/_/g, '/');
+  while (base64.length % 4) {
+    base64 += '=';
+  }
+  var decodedBytes = Utilities.base64Decode(base64);
+  return Utilities.newBlob(decodedBytes).getDataAsString("UTF-8");
+}
+
+function computeHmacSha256Signature(input, secret) {
+  var signatureBytes = Utilities.computeHmacSignature(
+    Utilities.MacAlgorithm.HMAC_SHA_256,
+    input,
+    secret
+  );
+  var base64Signature = Utilities.base64Encode(signatureBytes);
+  return base64Signature.replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
 }

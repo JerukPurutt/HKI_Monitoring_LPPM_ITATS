@@ -7,10 +7,54 @@ import { api, getScriptUrl, saveScriptUrl, isMockMode } from './services/api';
 import itatsLogo from './assets/ITATS-Logo.png';
 import './App.css';
 
+function parseJwt(token) {
+  try {
+    if (!token) return null;
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    return JSON.parse(jsonPayload);
+  } catch (e) {
+    return null;
+  }
+}
+
+function checkTokenValidity() {
+  const token = localStorage.getItem('hki_tracker_token');
+  const user = localStorage.getItem('hki_tracker_user');
+  const lastActiveStr = localStorage.getItem('hki_tracker_last_active');
+  
+  if (!token || !user || !lastActiveStr) {
+    return null;
+  }
+  
+  const decoded = parseJwt(token);
+  if (!decoded) {
+    return null;
+  }
+  
+  const nowInSeconds = Math.floor(Date.now() / 1000);
+  if (decoded.exp && nowInSeconds > decoded.exp) {
+    return null;
+  }
+  
+  const lastActive = parseInt(lastActiveStr, 10);
+  const oneDayMs = 24 * 60 * 60 * 1000;
+  if (isNaN(lastActive) || (Date.now() - lastActive) > oneDayMs) {
+    return null;
+  }
+  
+  return JSON.parse(user);
+}
+
 export default function App() {
   const [currentUser, setCurrentUser] = useState(() => {
-    const savedUser = localStorage.getItem('hki_tracker_user');
-    return savedUser ? JSON.parse(savedUser) : null;
+    return checkTokenValidity();
   });
   const [submissions, setSubmissions] = useState([]);
   const [selectedSubmission, setSelectedSubmission] = useState(null);
@@ -91,6 +135,41 @@ export default function App() {
     setIsDark(prev => !prev);
   };
 
+  // 5b. Monitor activity and session timeout
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const checkInterval = setInterval(() => {
+      const validUser = checkTokenValidity();
+      if (!validUser) {
+        showToast('Sesi Anda telah berakhir. Silakan login kembali.', 'error');
+        handleLogout(true);
+      }
+    }, 10000); // Check every 10 seconds
+
+    let lastSavedTime = Date.now();
+    const updateActivity = () => {
+      const now = Date.now();
+      if (now - lastSavedTime > 10000) { // Throttle activity updates to once every 10s
+        localStorage.setItem('hki_tracker_last_active', now.toString());
+        lastSavedTime = now;
+      }
+    };
+
+    window.addEventListener('mousemove', updateActivity);
+    window.addEventListener('keydown', updateActivity);
+    window.addEventListener('click', updateActivity);
+    window.addEventListener('scroll', updateActivity);
+
+    return () => {
+      clearInterval(checkInterval);
+      window.removeEventListener('mousemove', updateActivity);
+      window.removeEventListener('keydown', updateActivity);
+      window.removeEventListener('click', updateActivity);
+      window.removeEventListener('scroll', updateActivity);
+    };
+  }, [currentUser]);
+
   // 6. Save Google Script Web App URL settings
   const handleSaveSettings = (e) => {
     e.preventDefault();
@@ -103,18 +182,24 @@ export default function App() {
   };
 
   // 7. Handle Login Success
-  const handleLoginSuccess = (user) => {
+  const handleLoginSuccess = (user, token) => {
     setCurrentUser(user);
     localStorage.setItem('hki_tracker_user', JSON.stringify(user));
+    localStorage.setItem('hki_tracker_token', token);
+    localStorage.setItem('hki_tracker_last_active', Date.now().toString());
     showToast(`Selamat datang kembali, ${user.username}!`, 'success');
   };
 
   // 8. Handle Logout
-  const handleLogout = () => {
+  const handleLogout = (isAuto = false) => {
     setCurrentUser(null);
     localStorage.removeItem('hki_tracker_user');
+    localStorage.removeItem('hki_tracker_token');
+    localStorage.removeItem('hki_tracker_last_active');
     setSelectedSubmission(null);
-    showToast('Anda telah keluar dari sistem.', 'success');
+    if (!isAuto) {
+      showToast('Anda telah keluar dari sistem.', 'success');
+    }
   };
 
   // 9. Handle creation success

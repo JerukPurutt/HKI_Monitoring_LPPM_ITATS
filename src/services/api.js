@@ -11,6 +11,44 @@ const STAGE_NAMES = [
   "Dokumen PJK"
 ];
 
+const JWT_SECRET = 'lppm_hki_secret_key_2026';
+
+function generateMockJwt(user) {
+  const header = { alg: "HS256", typ: "JWT" };
+  const payload = {
+    username: user.username,
+    role: user.role,
+    exp: Math.floor(Date.now() / 1000) + (3 * 24 * 60 * 60) // 3 days
+  };
+  
+  const base64UrlEncode = (obj) => {
+    const str = JSON.stringify(obj);
+    const bytes = new TextEncoder().encode(str);
+    const binString = Array.from(bytes, byte => String.fromCharCode(byte)).join("");
+    return btoa(binString)
+      .replace(/=/g, '')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_');
+  };
+  
+  const headerB64 = base64UrlEncode(header);
+  const payloadB64 = base64UrlEncode(payload);
+  
+  const rawSig = headerB64 + "." + payloadB64 + "." + JWT_SECRET;
+  const sigBytes = new TextEncoder().encode(rawSig);
+  const sigBin = Array.from(sigBytes, byte => String.fromCharCode(byte)).join("");
+  const signatureB64 = btoa(sigBin)
+    .replace(/=/g, '')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_');
+    
+  return `${headerB64}.${payloadB64}.${signatureB64}`;
+}
+
+export function getToken() {
+  return localStorage.getItem('hki_tracker_token');
+}
+
 // Helper to check warning condition (overdue proof of transfer)
 export function checkWarningStatus(submission) {
   const isTransferUploaded = !!submission.timeline[2]?.fileUrl;
@@ -114,7 +152,10 @@ function initializeMockData() {
   localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(mockSubmissions));
 }
 
-initializeMockData();
+// Clean initialization call if not present
+if (!localStorage.getItem(LOCAL_STORAGE_KEY)) {
+  initializeMockData();
+}
 
 // Hardcoded Google Apps Script Web App URL
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwJ5NTePoHWW_FJvxft3RYV3JKentw4F-wDM-Orf1oKe26XA-vFU0nUZynnKLh1AJOayg/exec';
@@ -229,10 +270,16 @@ export const api = {
 
     if (!scriptUrl) {
       // Mock mode authentication
+      let user = null;
       if (cleanUser === 'lppm_admin' && cleanPass === 'lppm_jaya') {
-        return { success: true, user: { username: 'admin', role: 'admin' } };
+        user = { username: 'admin', role: 'admin' };
       } else if (cleanUser === 'lppm_user' && cleanPass === 'lppm_jaya24') {
-        return { success: true, user: { username: 'user', role: 'user' } };
+        user = { username: 'user', role: 'user' };
+      }
+      
+      if (user) {
+        const token = generateMockJwt(user);
+        return { success: true, user, token };
       }
       return { success: false, error: "Username atau password salah" };
     }
@@ -267,7 +314,7 @@ export const api = {
     }
 
     try {
-      const response = await fetch(`${scriptUrl}?action=list`);
+      const response = await fetch(`${scriptUrl}?action=list&token=${encodeURIComponent(getToken() || '')}`);
       if (!response.ok) throw new Error('API request failed');
       const data = await response.json();
       return data;
@@ -310,6 +357,7 @@ export const api = {
     try {
       const payload = {
         action: 'create',
+        token: getToken(),
         nomorSurat,
         prodi,
         pemohon,
@@ -369,6 +417,7 @@ export const api = {
     try {
       const payload = {
         action: 'upload',
+        token: getToken(),
         id: submissionId,
         stageIndex: parseInt(stageIndex),
         file: fileData
@@ -402,6 +451,7 @@ export const api = {
     try {
       const payload = {
         action: 'delete',
+        token: getToken(),
         id: submissionId
       };
 
