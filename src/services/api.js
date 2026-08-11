@@ -229,9 +229,9 @@ export const api = {
 
     if (!scriptUrl) {
       // Mock mode authentication
-      if (cleanUser === 'admin' && cleanPass === 'admin123') {
+      if (cleanUser === 'lppm_admin' && cleanPass === 'lppm_jaya') {
         return { success: true, user: { username: 'admin', role: 'admin' } };
-      } else if (cleanUser === 'user' && cleanPass === 'user123') {
+      } else if (cleanUser === 'lppm_user' && cleanPass === 'lppm_jaya24') {
         return { success: true, user: { username: 'user', role: 'user' } };
       }
       return { success: false, error: "Username atau password salah" };
