@@ -256,7 +256,7 @@ export default function Dashboard({ submissions, onSelectSubmission, onOpenNewFo
                       <td>{statusBadge}</td>
                       <td style={{ textAlign: 'right' }}>
                         <div style={{ display: 'flex', gap: '0.375rem', justifyContent: 'flex-end' }}>
-                          {currentUser?.role === 'user' && (
+                          {(currentUser?.role === 'user' || currentUser?.role === 'admin') && (
                             <button 
                               className="btn btn-secondary btn-icon" 
                               style={{ color: 'hsl(var(--destructive))', borderColor: 'hsl(var(--destructive) / 0.2)' }}

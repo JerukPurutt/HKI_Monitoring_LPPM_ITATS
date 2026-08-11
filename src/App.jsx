@@ -4,6 +4,7 @@ import SubmissionDetail from './components/SubmissionDetail';
 import SubmissionForm from './components/SubmissionForm';
 import Login from './components/Login';
 import { api, getScriptUrl, saveScriptUrl, isMockMode } from './services/api';
+import itatsLogo from './assets/ITATS-Logo.png';
 import './App.css';
 
 export default function App() {
@@ -20,13 +21,13 @@ export default function App() {
   const [error, setError] = useState('');
   const [toasts, setToasts] = useState([]);
   
-  // Theme state
+  // Theme state – default: light mode
   const [isDark, setIsDark] = useState(() => {
     const savedTheme = localStorage.getItem('hki_tracker_theme');
     if (savedTheme) {
       return savedTheme === 'dark';
     }
-    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+    return false; // Default: light mode
   });
 
   // 1. Initialize theme
@@ -152,9 +153,12 @@ export default function App() {
     <div className="app-container">
       {/* Header section */}
       <header className="app-header">
-        <div className="header-title">
-          <h1>Arsip & Rekap Pengajuan Dana HKI</h1>
-          <p>Lembaga Penelitian dan Pengabdian kepada Masyarakat (LPPM)</p>
+        <div className="header-logo-title-group">
+          <img src={itatsLogo} alt="Logo ITATS" className="header-logo-img" />
+          <div className="header-title">
+            <h1>Arsip & Rekap Pengajuan Dana HKI</h1>
+            <p>Lembaga Penelitian dan Pengabdian kepada Masyarakat (LPPM)</p>
+          </div>
         </div>
 
         <div className="header-actions">
@@ -177,7 +181,7 @@ export default function App() {
           </button>
 
           {/* Logout Button */}
-          <button className="btn btn-secondary" onClick={handleLogout} title="Keluar">
+          <button className="btn btn-destructive" onClick={handleLogout} title="Keluar">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
             Keluar
           </button>

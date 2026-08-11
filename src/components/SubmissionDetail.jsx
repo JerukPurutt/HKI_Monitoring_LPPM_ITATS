@@ -107,7 +107,7 @@ export default function SubmissionDetail({ submission, onBack, onRefreshSubmissi
           Kembali ke Dashboard
         </button>
 
-        {currentUser?.role === 'user' && (
+        {(currentUser?.role === 'user' || currentUser?.role === 'admin') && (
           <button 
             className="btn" 
             style={{ backgroundColor: 'hsl(var(--destructive) / 0.1)', color: 'hsl(var(--destructive))', border: '1px solid hsl(var(--destructive) / 0.3)' }}
