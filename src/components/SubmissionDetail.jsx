@@ -107,7 +107,7 @@ export default function SubmissionDetail({ submission, onBack, onRefreshSubmissi
           Kembali ke Dashboard
         </button>
 
-        {(currentUser?.role === 'user' || currentUser?.role === 'admin') && (
+        {currentUser?.role === 'user' && (
           <button 
             className="btn btn-delete-detail" 
             onClick={() => setShowDeleteModal(true)}

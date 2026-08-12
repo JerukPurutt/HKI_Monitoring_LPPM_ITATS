@@ -24,7 +24,7 @@ export default function Login({ onLoginSuccess, toggleTheme, isDark }) {
     try {
       const response = await api.login(username, password);
       if (response.success) {
-        onLoginSuccess(response.user, response.token);
+        onLoginSuccess(response.user, response.token, response.submissions);
       } else {
         setError(response.error || 'Username atau password salah.');
       }

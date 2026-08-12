@@ -158,7 +158,7 @@ if (!localStorage.getItem(LOCAL_STORAGE_KEY)) {
 }
 
 // Hardcoded Google Apps Script Web App URL
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwJ5NTePoHWW_FJvxft3RYV3JKentw4F-wDM-Orf1oKe26XA-vFU0nUZynnKLh1AJOayg/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyEy1QY3-L9isazzeNYp7HnpfkPgU1h80yL-PASw4VhsaoBvp33XwVJXuu0zeuJaExRwQ/exec';
 
 // Get the Script URL
 export function getScriptUrl() {

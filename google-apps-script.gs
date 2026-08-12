@@ -18,6 +18,37 @@ function getActiveSpreadsheetCached() {
   return _ssCache;
 }
 
+// Get cached submissions data
+function getAllSubmissionsDataCached(sheet) {
+  var cache = CacheService.getScriptCache();
+  var cachedData = cache.get("all_submissions_data");
+  if (cachedData != null) {
+    try {
+      return JSON.parse(cachedData);
+    } catch(e) {
+      // fallback to sheet
+    }
+  }
+  
+  var data = getAllSubmissionsData(sheet);
+  try {
+    cache.put("all_submissions_data", JSON.stringify(data), 600); // cache for 10 minutes (600s)
+  } catch(e) {
+    // fail silently if size exceeds 100KB limit
+  }
+  return data;
+}
+
+// Clear submissions cache
+function clearSubmissionsCache() {
+  try {
+    var cache = CacheService.getScriptCache();
+    cache.remove("all_submissions_data");
+  } catch(e) {
+    // ignore
+  }
+}
+
 
 // Handle GET Request (fetching data)
 function doGet(e) {
@@ -31,7 +62,7 @@ function doGet(e) {
         return createJsonResponse({ success: false, error: 'Unauthorized: Token tidak valid atau kedaluwarsa' });
       }
       var sheet = getOrCreateSheet();
-      var data = getAllSubmissionsData(sheet);
+      var data = getAllSubmissionsDataCached(sheet);
       return createJsonResponse(data);
     }
     
@@ -51,6 +82,10 @@ function doPost(e) {
     if (action === 'login') {
       var usersSheet = getOrCreateUsersSheet();
       var loginResult = handleLogin(usersSheet, postData);
+      if (loginResult.success) {
+        var submissionsSheet = getOrCreateSheet();
+        loginResult.submissions = getAllSubmissionsDataCached(submissionsSheet);
+      }
       return createJsonResponse(loginResult);
     }
     
@@ -60,6 +95,9 @@ function doPost(e) {
     if (!userPayload) {
       return createJsonResponse({ success: false, error: 'Unauthorized: Token tidak valid atau kedaluwarsa' });
     }
+    
+    // Clear cache for write operations
+    clearSubmissionsCache();
     
     // Action 2 & 3: Create & Upload Submissions
     var sheet = getOrCreateSheet();

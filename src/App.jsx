@@ -90,7 +90,11 @@ export default function App() {
     const url = getScriptUrl();
     setScriptUrl(url);
     if (currentUser) {
-      fetchData();
+      if (submissions.length === 0) {
+        fetchData();
+      } else {
+        setLoading(false);
+      }
     } else {
       setLoading(false);
     }
@@ -182,11 +186,17 @@ export default function App() {
   };
 
   // 7. Handle Login Success
-  const handleLoginSuccess = (user, token) => {
+  const handleLoginSuccess = (user, token, initialSubmissions) => {
     setCurrentUser(user);
     localStorage.setItem('hki_tracker_user', JSON.stringify(user));
     localStorage.setItem('hki_tracker_token', token);
     localStorage.setItem('hki_tracker_last_active', Date.now().toString());
+    
+    if (initialSubmissions && Array.isArray(initialSubmissions)) {
+      const sorted = [...initialSubmissions].sort((a, b) => new Date(b.tanggalPengajuan) - new Date(a.tanggalPengajuan));
+      setSubmissions(sorted);
+    }
+    
     showToast(`Selamat datang kembali, ${user.username}!`, 'success');
   };
 
@@ -217,6 +227,10 @@ export default function App() {
 
   // 11. Delete submission
   const handleDeleteSubmission = async (id) => {
+    if (currentUser?.role === 'admin') {
+      showToast('Akses ditolak: Admin tidak diperbolehkan menghapus pengajuan', 'error');
+      return;
+    }
     try {
       await api.deleteSubmission(id);
       setSubmissions(prev => prev.filter(s => s.id !== id));
